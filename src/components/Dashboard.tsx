@@ -1,62 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { format, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
+import React, { useState, useEffect, useCallback } from 'react';
+import { format, parseISO } from 'date-fns';
 import { WeeklyExpense, Settings } from '../types';
-import { Download, TrendingUp, Wallet } from 'lucide-react';
+import { Download, TrendingUp, Wallet, AlertCircle, ChevronDown, ChevronUp, User } from 'lucide-react';
+import { fetchWeeklyExpenses, fetchSettings, ExpenseWithUser } from '../lib/expenseService';
+import ExpenseChart from './ExpenseChart';
 
 const Dashboard = () => {
   const [weeklyExpense, setWeeklyExpense] = useState<WeeklyExpense>({
     total: 0,
     remaining: 0,
+    dailyRemaining: 0,
     days: {}
   });
   const [settings, setSettings] = useState<Settings>({ numberOfPeople: 1, dailyLimitPerPerson: 200 });
+  const [expandedDays, setExpandedDays] = useState<{[key: string]: boolean}>({});
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const settingsData = await fetchSettings();
+      setSettings(settingsData);
+      const weeklyData = await fetchWeeklyExpenses(settingsData);
+      setWeeklyExpense(weeklyData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    }
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const start = startOfWeek(new Date(), { weekStartsOn: 1 });
-      const end = endOfWeek(new Date(), { weekStartsOn: 1 });
+    loadData();
+  }, [loadData]);
 
-      const q = query(
-        collection(db, 'expenses'),
-        where('date', '>=', format(start, 'yyyy-MM-dd')),
-        where('date', '<=', format(end, 'yyyy-MM-dd'))
-      );
-
-      const querySnapshot = await getDocs(q);
-      const expenses = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      const weeklyData: WeeklyExpense = {
-        total: 0,
-        remaining: 0,
-        days: {}
-      };
-
-      expenses.forEach((expense: any) => {
-        const date = expense.date;
-        if (!weeklyData.days[date]) {
-          weeklyData.days[date] = {
-            total: 0,
-            meals: { morning: 0, lunch: 0, dinner: 0 }
-          };
-        }
-        weeklyData.days[date].meals[expense.meal] += expense.amount;
-        weeklyData.days[date].total += expense.amount;
-        weeklyData.total += expense.amount;
-      });
-
-      const weeklyLimit = settings.numberOfPeople * settings.dailyLimitPerPerson * 5;
-      weeklyData.remaining = weeklyLimit - weeklyData.total;
-
-      setWeeklyExpense(weeklyData);
-    };
-
-    fetchData();
-  }, [settings]);
+  const toggleDay = (date: string) => {
+    setExpandedDays(prev => ({
+      ...prev,
+      [date]: !prev[date]
+    }));
+  };
 
   const downloadReport = () => {
     const dataStr = JSON.stringify(weeklyExpense, null, 2);
@@ -69,9 +51,51 @@ const Dashboard = () => {
     linkElement.click();
   };
 
+  const renderMealExpenses = (expenses: ExpenseWithUser[]) => {
+    if (expenses.length === 0) return <div className="text-gray-500">No expenses</div>;
+
+    return expenses.map((expense) => (
+      <div key={expense.id} className="flex items-center justify-between py-1 border-b last:border-b-0">
+        <div className="flex items-center">
+          <User className="h-4 w-4 mr-2 text-gray-400" />
+          <span className="text-sm text-gray-600">{expense.userEmail}</span>
+        </div>
+        <span className="text-sm font-medium">₹{expense.amount}</span>
+      </div>
+    ));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900">Today's Remaining</h3>
+            <AlertCircle className="h-5 w-5 text-orange-600" />
+          </div>
+          <p className={`mt-2 text-3xl font-bold ${weeklyExpense.dailyRemaining < 0 ? 'text-red-600' : 'text-orange-600'}`}>
+            ₹{weeklyExpense.dailyRemaining}
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900">Weekly Balance</h3>
+            <Wallet className="h-5 w-5 text-green-600" />
+          </div>
+          <p className={`mt-2 text-3xl font-bold ${weeklyExpense.remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>
+            ₹{weeklyExpense.remaining}
+          </p>
+        </div>
+
         <div className="bg-white p-6 rounded-lg shadow-md">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900">Weekly Total</h3>
@@ -79,40 +103,77 @@ const Dashboard = () => {
           </div>
           <p className="mt-2 text-3xl font-bold text-indigo-600">₹{weeklyExpense.total}</p>
         </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">Remaining Budget</h3>
-            <Wallet className="h-5 w-5 text-green-600" />
-          </div>
-          <p className="mt-2 text-3xl font-bold text-green-600">₹{weeklyExpense.remaining}</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <button
-            onClick={downloadReport}
-            className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-          >
-            <Download className="h-5 w-5 mr-2" />
-            Download Monthly Report
-          </button>
-        </div>
       </div>
 
+      <ExpenseChart weeklyData={weeklyExpense.days} />
+
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Daily Breakdown</h3>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-medium text-gray-900">Daily Breakdown</h3>
+          <div className="flex space-x-4">
+            <button
+              onClick={loadData}
+              className="flex items-center px-4 py-2 text-sm font-medium text-indigo-600 border border-indigo-600 rounded-md hover:bg-indigo-50"
+            >
+              <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+            <button
+              onClick={downloadReport}
+              className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+            >
+              <Download className="h-5 w-5 mr-2" />
+              Download Report
+            </button>
+          </div>
+        </div>
         <div className="space-y-4">
-          {Object.entries(weeklyExpense.days).map(([date, data]) => (
-            <div key={date} className="border-b pb-4">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="font-medium">{format(new Date(date), 'EEEE, MMM d')}</h4>
-                <span className="font-bold text-indigo-600">₹{data.total}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm text-gray-600">
-                <div>Morning: ₹{data.meals.morning}</div>
-                <div>Lunch: ₹{data.meals.lunch}</div>
-                <div>Dinner: ₹{data.meals.dinner}</div>
-              </div>
+          {Object.entries(weeklyExpense.days)
+            .sort(([dateA], [dateB]) => parseISO(dateA).getTime() - parseISO(dateB).getTime())
+            .map(([date, data]) => (
+            <div key={date} className="border rounded-lg overflow-hidden">
+              <button
+                onClick={() => toggleDay(date)}
+                className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center">
+                  <h4 className="font-medium">{format(new Date(date), 'EEEE, MMM d')}</h4>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <div className="font-bold text-indigo-600">₹{data.total}</div>
+                    <div className={`text-sm ${data.remaining < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      Remaining: ₹{data.remaining}
+                    </div>
+                  </div>
+                  {expandedDays[date] ? (
+                    <ChevronUp className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-gray-400" />
+                  )}
+                </div>
+              </button>
+              
+              {expandedDays[date] && (
+                <div className="p-4 border-t">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <h5 className="font-medium text-gray-700">Morning</h5>
+                      {renderMealExpenses((data as any).meals.morning)}
+                    </div>
+                    <div className="space-y-2">
+                      <h5 className="font-medium text-gray-700">Lunch</h5>
+                      {renderMealExpenses((data as any).meals.lunch)}
+                    </div>
+                    <div className="space-y-2">
+                      <h5 className="font-medium text-gray-700">Evening</h5>
+                      {renderMealExpenses((data as any).meals.evening)}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

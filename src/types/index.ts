@@ -1,7 +1,7 @@
 export interface Expense {
   id: string;
   date: string;
-  meal: 'morning' | 'lunch' | 'dinner';
+  meal: 'morning' | 'lunch' | 'evening';
   amount: number;
   createdAt: Date;
   userId: string;
@@ -16,13 +16,15 @@ export interface Settings {
 export interface WeeklyExpense {
   total: number;
   remaining: number;
+  dailyRemaining: number;
   days: {
     [key: string]: {
       total: number;
+      remaining: number;
       meals: {
         morning: number;
         lunch: number;
-        dinner: number;
+        evening: number;
       };
     };
   };

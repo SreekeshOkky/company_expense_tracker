@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
+import { useAnalytics } from '../../hooks/useAnalytics';
 
 const LoginForm = () => {
   const [email, setEmail] = useState('');
@@ -9,11 +10,13 @@ const LoginForm = () => {
   const [error, setError] = useState('');
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const { trackEvent } = useAnalytics();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await signIn(email, password);
+      trackEvent('LOGIN', { method: 'email' });
       navigate('/');
     } catch (err) {
       setError('Failed to sign in');
@@ -21,8 +24,8 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 p-6 sm:p-8 bg-white rounded-lg shadow-md">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Sign in</h2>
         </div>
@@ -41,6 +44,7 @@ const LoginForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
+                autoComplete="email"
               />
             </div>
             <div>
@@ -51,6 +55,7 @@ const LoginForm = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
+                autoComplete="current-password"
               />
             </div>
           </div>
@@ -65,6 +70,15 @@ const LoginForm = () => {
             </button>
           </div>
         </form>
+        
+        <div className="text-center mt-4">
+          <p className="text-sm text-gray-600">
+            Don't have an account?{' '}
+            <Link to="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+              Sign up here
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
