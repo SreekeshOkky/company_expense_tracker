@@ -8,6 +8,7 @@ import ExpenseEntries from './components/ExpenseEntries';
 import Settings from './components/Settings';
 import LoginForm from './components/auth/LoginForm';
 import SignupForm from './components/auth/SignupForm';
+import ResetPassword from './components/auth/ResetPassword';
 import Navigation from './components/Navigation';
 import InstallPWA from './components/InstallPWA';
 
@@ -22,6 +23,7 @@ function App() {
             <Routes>
               <Route path="/login" element={<LoginForm />} />
               <Route path="/signup" element={<SignupForm />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/add" element={<PrivateRoute><ExpenseForm /></PrivateRoute>} />
               <Route path="/entries" element={<PrivateRoute><ExpenseEntries /></PrivateRoute>} />

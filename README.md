@@ -1,4 +1,5 @@
 # Food Expense Tracker
+Created by Bolt
 
 A modern, responsive web application for tracking daily food expenses within a team. Built with React, TypeScript, and Firebase.
 
